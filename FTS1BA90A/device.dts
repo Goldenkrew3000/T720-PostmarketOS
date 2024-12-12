@@ -1,0 +1,26 @@
+fts_touchscreen@49 {
+	compatible = "st,stmfts";
+	reg = <0x49>;
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&touchscreen_default>;
+
+	touchscreen-size-x = <1600>;
+	touchscreen-size-y = <2600>;
+
+	interrupt-parent = <&tlmm>;
+	interrupts = <123 IRQ_TYPE_NONE>;
+	vdd-supply = <&vreg_l11a_1p8>;
+	avdd-supply = <&vreg_l6b_3p3>;
+		
+    status = "okay";
+};
+
+touchscreen_default: ts-default-state {
+    ts-active {
+		pins = "gpio123";
+		function = "gpio";
+		input-enable;
+		bias-disable;
+	};
+};
