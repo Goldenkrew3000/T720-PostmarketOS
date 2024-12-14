@@ -18,3 +18,5 @@ Ctrl + C the gpiomon <br>
 insmod driver.ko <br>
 Bam it works! Very poorly for now, but it works!!
 
+# Function Graph
+![Function Graph](https://github.com/Goldenkrew3000/T720-PostmarketOS/blob/main/feature-matrix.png?raw=true)
