@@ -7,16 +7,9 @@ This repository is basically a place for in-development drivers to be stored for
 ## SM5705-Fuelgauge
 
 ## FTS1BA90A
-This is the STM Touchscreen. This touchscreen driver is very similar to the upstream STMFTS driver, but this touch panel uses
-different I2C registers, a different initialization sequence, and returns it's data packed differently, hence the need for
+This is the STM Touchscreen. This touchscreen driver is very similar to the upstream STMFTS driver, but this touch panel uses different I2C registers, a different initialization sequence, and returns it's data packed differently, hence the need for
 a different driver. <br>
-Initialization Sequence until I figure out the bug: <br>
-gpiomon -c gpiochip2 123 <br>
-insmod driver.ko <br>
-rmmod driver.ko <br>
-Ctrl + C the gpiomon <br>
-insmod driver.ko <br>
-Bam it works! Very poorly for now, but it works!!
+Driver is functional.
 
 # Function Graph
 ![Function Graph](https://github.com/Goldenkrew3000/T720-PostmarketOS/blob/main/feature-matrix.png?raw=true)
