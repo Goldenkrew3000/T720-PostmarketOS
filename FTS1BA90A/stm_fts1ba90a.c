@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0
 // STMicroelectronics FTS1BA90A driver
 //
-// Copyright (c) 2017 Samsung Electronics Co., Ltd.
-// Copyright (c) 2017 Andi Shyti <andi@etezian.org>
+// Driver based off of stmfts
 // Copyright (c) 2024 Goldenkrew3000 <hungrymike@live.com>
+
+// Version 1a
 
 #include <linux/delay.h>
 #include <linux/i2c.h>
@@ -57,29 +58,30 @@
 #define FTS1BA90A_STACK_DEPTH       32
 #define FTS1BA90A_MAX_DATA_SIZE     (FTS1BA90A_EVENT_SIZE * FTS1BA90A_STACK_DEPTH)
 #define FTS1BA90A_DRIVER_NAME       "stm_fts1ba90a"
+#define FTS1BA90A_SUPPORT_MULTITOUCH 0 // Multitouch is currently disabled
 
 enum fts1ba90a_regulators {
-	FTS1BA90A_REGULATOR_VDD,
-	FTS1BA90A_REGULATOR_AVDD,
+    FTS1BA90A_REGULATOR_VDD,
+    FTS1BA90A_REGULATOR_AVDD,
 };
 
 struct fts1ba90a_data {
-	struct i2c_client *client;
-	struct input_dev *input;
-	struct mutex mutex;
-	struct touchscreen_properties prop;
-	struct regulator_bulk_data regulators[2];
-	uint16_t chip_id;
-	u8 chip_ver; // TODO
-	u16 fw_ver;
-	u8 config_id;
-	u8 config_ver;
-	uint8_t data[FTS1BA90A_MAX_DATA_SIZE];
-	struct completion cmd_done;
-	bool use_key;
-	bool led_status;
-	bool hover_enabled;
-	bool running;
+    struct i2c_client *client;
+    struct input_dev *input;
+    struct mutex mutex;
+    struct touchscreen_properties prop;
+    struct regulator_bulk_data regulators[2];
+    uint16_t chip_id;
+    u8 chip_ver; // TODO
+    u16 fw_ver;
+    u8 config_id;
+    u8 config_ver;
+    uint8_t data[FTS1BA90A_MAX_DATA_SIZE];
+    struct completion cmd_done;
+    bool use_key;
+    bool led_status;
+    bool hover_enabled;
+    bool running;
 };
 
 struct fts1ba90a_event_coordinate {
@@ -98,16 +100,6 @@ struct fts1ba90a_event_coordinate {
     uint8_t ttype_1_0:2;
 } __packed;
 struct fts1ba90a_event_coordinate *event_coordinate;
-
-
-
-
-
-
-
-
-
-
 
 static int fts1ba90a_command(struct fts1ba90a_data* data, uint8_t command) {
     int err;
@@ -133,22 +125,18 @@ static int fts1ba90a_write_register(struct fts1ba90a_data* data, uint8_t* reg, i
     }
     memcpy(write_buf, reg, bytes);
 
-    // Construct I2C transfer message
     transfer_msg[0].addr = data->client->addr;
     transfer_msg[0].len = bytes;
     transfer_msg[0].flags = 0;
     transfer_msg[0].buf = write_buf;
-
     ret = i2c_transfer(data->client->adapter, transfer_msg, 1);
-
     kfree(write_buf);
-    
+
     return ret;
 }
 
 static int fts1ba90a_perform_reset(struct fts1ba90a_data* data) {
     uint8_t write_buf[6] = { 0xFA, 0x20, 0x00, 0x00, 0x24, 0x81 };
-
     fts1ba90a_write_register(data, &write_buf[0], 6);
 
     return 0;
@@ -156,16 +144,14 @@ static int fts1ba90a_perform_reset(struct fts1ba90a_data* data) {
 
 static int fts1ba90a_set_scanmode(struct fts1ba90a_data* data, uint8_t scanmode) {
     uint8_t write_buf[3] = { FTS1BA90A_REG_SET_SCANMODE, 0x00, scanmode };
-
     fts1ba90a_write_register(data, &write_buf[0], 3);
 
     return 0;
 }
 
 static int fts1ba90a_set_touchtype(struct fts1ba90a_data* data) {
-    // TODO I think this is wrong, it doesnt actually seem to set the touchtype, fix later
+    // TODO This does not actually set a touch type
     uint8_t write_buf[3] = { FTS1BA90A_REG_SET_TOUCH_TYPE, FTS1BA90A_REG_SET_TOUCH_TYPE & 0xFF, FTS1BA90A_REG_SET_TOUCH_TYPE >> 8 };
-
     fts1ba90a_write_register(data, &write_buf[0], 3);
 
     return 0;
@@ -182,18 +168,14 @@ static int fts1ba90a_power_on(struct fts1ba90a_data* data) {
     }
     msleep(20);
 
-    // Read in device info here TODO
+    // TODO Read in device info here
 
-    // Perform a reset on the device (If I don't, the touchscreen doesn't respond to anything)
-    // TODO This still doesn't help...
-    fts1ba90a_perform_reset(data);
-    msleep(50);
+    // NOTE: Was performing a device reset here, but it appears to work fine without it
+    //       (And honestly I am not sure whether the downstream driver does it or not anyway)
 
     // Enable IRQ
     enable_irq(data->client->irq);
     msleep(50);
-
-    // P.S. I think I need to do some full reset here (There is a set of 5 commands to do that in the downstream driver) TODO
 
     // Set touch mode
     fts1ba90a_set_touchtype(data);
@@ -218,7 +200,7 @@ static int fts1ba90a_power_on(struct fts1ba90a_data* data) {
 }
 
 static void fts1ba90a_power_off(void* data) {
-    // HAHA funny upstream driver...
+    // TODO Handle power off
 }
 
 static void fts1ba90a_parse_event(struct fts1ba90a_data* data) {
@@ -257,32 +239,51 @@ static void fts1ba90a_parse_event(struct fts1ba90a_data* data) {
                 touch_x = 1600 - touch_x;
 
                 if (touch_x != 0 && touch_y != 0) {
-                    dev_err(&data->client->dev, "Touch X/Y/Act: %d %d %d\n", touch_x, touch_y, touch_z);
-                
-                    // Send input!!!!
-                    input_mt_slot(data->input, touch_id);
-                    input_mt_report_slot_state(data->input, MT_TOOL_FINGER, true);
-                    input_report_abs(data->input, ABS_MT_POSITION_Y, touch_x);
-	                input_report_abs(data->input, ABS_MT_POSITION_X, touch_y);
-                    input_report_abs(data->input, ABS_MT_TOUCH_MAJOR, touch_major);
-	                input_report_abs(data->input, ABS_MT_TOUCH_MINOR, touch_minor);
-                    input_report_abs(data->input, ABS_MT_PRESSURE, touch_z);
-                    input_sync(data->input);
+                    if (FTS1BA90A_SUPPORT_MULTITOUCH == 0 && touch_id == 0) {
+                        // If multitouch is disabled
+                        dev_info(&data->client->dev, "Finger is down\n");
+                        //dev_err(&data->client->dev, "Touch X/Y/Act: %d %d %d\n", touch_x, touch_y, touch_z);
+                        
+                        // Send input!!!!
+                        if (touch_action == 1) {
+                            // First finger press
+                            dev_info(&data->client->dev, "Finger has been detected\n");
 
-                    // Also some issue here with EVTEST not showing all values being sent... Mutexes?
+                            input_mt_slot(data->input, touch_id);
+                            input_mt_report_slot_state(data->input, MT_TOOL_FINGER, true);
+
+                            input_report_abs(data->input, ABS_MT_POSITION_Y, touch_x);
+                            input_report_abs(data->input, ABS_MT_POSITION_X, touch_y);
+                            input_report_abs(data->input, ABS_MT_TOUCH_MAJOR, touch_major);
+                            input_report_abs(data->input, ABS_MT_TOUCH_MINOR, touch_minor);
+                            input_report_abs(data->input, ABS_MT_PRESSURE, touch_z);
+
+                            input_sync(data->input);
+                        } else if (touch_action == 2) {
+                            input_mt_slot(data->input, touch_id);
+
+                            input_report_abs(data->input, ABS_MT_POSITION_Y, touch_x);
+                            input_report_abs(data->input, ABS_MT_POSITION_X, touch_y);
+                            input_report_abs(data->input, ABS_MT_TOUCH_MAJOR, touch_major);
+                            input_report_abs(data->input, ABS_MT_TOUCH_MINOR, touch_minor);
+                            input_report_abs(data->input, ABS_MT_PRESSURE, touch_z);
+
+                            input_sync(data->input);
+                        } else if (touch_action == 3) {
+                            // Finger release
+                            dev_info(&data->client->dev, "Finger has been released\n");
+                            input_mt_slot(data->input, touch_id);
+                            input_mt_report_slot_inactive(data->input);
+
+                            input_sync(data->input);
+                        }
+                    }
                 }
-
-
-
                 break;
 
             default:
                 break;
         }
-        
-
-        //int finger_id = event_coordinate->tid;
-        //dev_info(&data->client->dev, "Finger ID: %d\n", finger_id);
     }
 }
 
@@ -312,15 +313,14 @@ static irqreturn_t fts1ba90a_irq_handler(int irq, void* dev) {
     struct fts1ba90a_data* data = dev;
 
     mutex_lock(&data->mutex);
-    
     err = fts1ba90a_read_event(data);
-    if (unlikely(err)) { // Cool branch prediction stuff...
+    if (unlikely(err)) { // unlikely() is branch prediction
         dev_err(&data->client->dev, "Could not read IRQ event.\n");
     } else {
         fts1ba90a_parse_event(data);
     }
-
     mutex_unlock(&data->mutex);
+
     return IRQ_HANDLED;
 }
 
@@ -353,7 +353,7 @@ static int fts1ba90a_input_open(struct input_dev* dev) {
 }
 
 static void fts1ba90a_input_close(struct input_dev* dev) {
-    //
+    // TODO Handle shutdown
 }
 
 static int fts1ba90a_probe(struct i2c_client* client) {
@@ -374,7 +374,7 @@ static int fts1ba90a_probe(struct i2c_client* client) {
     mutex_init(&data->mutex);
     init_completion(&data->cmd_done);
 
-    dev_info(&data->client->dev, "Probing for the STM FTS1BA90A...\n");
+    dev_info(&data->client->dev, "Probing for STM FTS1BA90A touchscreen...\n");
 
     // Setup regulators
     data->regulators[FTS1BA90A_REGULATOR_VDD].supply = "vdd";
@@ -396,15 +396,13 @@ static int fts1ba90a_probe(struct i2c_client* client) {
     
     // Set input capabilities
     input_set_capability(data->input, EV_ABS, ABS_MT_POSITION_X);
-	input_set_capability(data->input, EV_ABS, ABS_MT_POSITION_Y);
-	touchscreen_parse_properties(data->input, true, &data->prop);
-	input_set_abs_params(data->input, ABS_MT_TOUCH_MAJOR, 0, 255, 0, 0);
-	input_set_abs_params(data->input, ABS_MT_TOUCH_MINOR, 0, 255, 0, 0);
-	input_set_abs_params(data->input, ABS_MT_ORIENTATION, 0, 255, 0, 0);
-	input_set_abs_params(data->input, ABS_MT_PRESSURE, 0, 255, 0, 0);
-	input_set_abs_params(data->input, ABS_DISTANCE, 0, 255, 0, 0);
-
-    // NOTE: Original driver dealt with use_key here, not needed for this device
+    input_set_capability(data->input, EV_ABS, ABS_MT_POSITION_Y);
+    touchscreen_parse_properties(data->input, true, &data->prop);
+    input_set_abs_params(data->input, ABS_MT_TOUCH_MAJOR, 0, 255, 0, 0);
+    input_set_abs_params(data->input, ABS_MT_TOUCH_MINOR, 0, 255, 0, 0);
+    input_set_abs_params(data->input, ABS_MT_PRESSURE, 0, 255, 0, 0);
+    // TODO Currently no orientation support
+    input_set_abs_params(data->input, ABS_DISTANCE, 0, 255, 0, 0);
 
     err = input_mt_init_slots(data->input, FTS1BA90A_MAX_FINGERS, INPUT_MT_DIRECT);
     if (err) {
@@ -434,8 +432,6 @@ static int fts1ba90a_probe(struct i2c_client* client) {
         err;
     }
 
-    // NOTE: More use_key stuff here, again not needed
-
     pm_runtime_enable(&client->dev);
     device_enable_async_suspend(&client->dev);
 
@@ -447,7 +443,7 @@ static void fts1ba90a_remove(struct i2c_client* client) {
 }
 
 static void fts1ba90a_shutdown(struct i2c_client* client) {
-    // TODO
+    // TODO Add shutdown code
 }
 
 static const struct i2c_device_id fts1ba90a_device_id[] = {
@@ -456,7 +452,7 @@ static const struct i2c_device_id fts1ba90a_device_id[] = {
 };
 
 static const struct of_device_id fts1ba90a_match_table[] = {
-    { .compatible = "st,stmfts", }, // Change to stm,fts1ba90a
+    { .compatible = "stm,fts1ba90a", }, // Change to stm,fts1ba90a
     {},
 };
 
@@ -485,6 +481,6 @@ static void __exit fts1ba90a_exit(void) {
 module_init(fts1ba90a_init);
 module_exit(fts1ba90a_exit);
 
-MODULE_DESCRIPTION("STM FTS1BA90A I2C Driver");
+MODULE_DESCRIPTION("STM FTS1BA90A Touchscreen I2C Driver");
 MODULE_AUTHOR("Goldenkrew3000");
 MODULE_LICENSE("GPL");
