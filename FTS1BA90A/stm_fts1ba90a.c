@@ -229,52 +229,38 @@ static void fts1ba90a_parse_event(struct fts1ba90a_data* data) {
 
                 touch_x = (event_coordinate->x_11_4 << 4) | (event_coordinate->x_3_0);
                 touch_y = (event_coordinate->y_11_4 << 4) | (event_coordinate->y_3_0);
-                touch_z = event_coordinate->z & 0x3F; // Area
+                touch_z = event_coordinate->z & 0x3F;
                 touch_action = event_coordinate->tchsta; // 1 = First press, 2 = Hold, 3 = Release
                 touch_minor = event_coordinate->minor;
                 touch_major = event_coordinate->major;
 
                 // The X coordinate seems to be reversed to the panel, reverse it
-                // NOTE: BAD BAD BAD FOR UPSTREAM, THIS ASSUMES THE PANEL IS 1600Y
+                // NOTE: BAD BAD BAD FOR UPSTREAM, THIS ASSUMES THE PANEL IS 1600 pixel in height
                 touch_x = 1600 - touch_x;
 
                 if (touch_x != 0 && touch_y != 0) {
                     if (FTS1BA90A_SUPPORT_MULTITOUCH == 0 && touch_id == 0) {
                         // If multitouch is disabled
-                        dev_info(&data->client->dev, "Finger is down\n");
-                        //dev_err(&data->client->dev, "Touch X/Y/Act: %d %d %d\n", touch_x, touch_y, touch_z);
-                        
-                        // Send input!!!!
                         if (touch_action == 1) {
-                            // First finger press
-                            dev_info(&data->client->dev, "Finger has been detected\n");
-
                             input_mt_slot(data->input, touch_id);
                             input_mt_report_slot_state(data->input, MT_TOOL_FINGER, true);
-
                             input_report_abs(data->input, ABS_MT_POSITION_Y, touch_x);
                             input_report_abs(data->input, ABS_MT_POSITION_X, touch_y);
                             input_report_abs(data->input, ABS_MT_TOUCH_MAJOR, touch_major);
                             input_report_abs(data->input, ABS_MT_TOUCH_MINOR, touch_minor);
                             input_report_abs(data->input, ABS_MT_PRESSURE, touch_z);
-
                             input_sync(data->input);
                         } else if (touch_action == 2) {
                             input_mt_slot(data->input, touch_id);
-
                             input_report_abs(data->input, ABS_MT_POSITION_Y, touch_x);
                             input_report_abs(data->input, ABS_MT_POSITION_X, touch_y);
                             input_report_abs(data->input, ABS_MT_TOUCH_MAJOR, touch_major);
                             input_report_abs(data->input, ABS_MT_TOUCH_MINOR, touch_minor);
                             input_report_abs(data->input, ABS_MT_PRESSURE, touch_z);
-
                             input_sync(data->input);
                         } else if (touch_action == 3) {
-                            // Finger release
-                            dev_info(&data->client->dev, "Finger has been released\n");
                             input_mt_slot(data->input, touch_id);
                             input_mt_report_slot_inactive(data->input);
-
                             input_sync(data->input);
                         }
                     }
@@ -457,6 +443,7 @@ static const struct of_device_id fts1ba90a_match_table[] = {
 };
 
 static struct i2c_driver fts1ba90a_driver = {
+    // TODO Handle suspending
     .driver = {
         .name = FTS1BA90A_DRIVER_NAME,
         .owner = THIS_MODULE,
