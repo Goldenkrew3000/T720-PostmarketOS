@@ -3,6 +3,7 @@
 ## PLEASE Readme
 I have included a copy of all the required firmware in the ```wifi-firmware``` folder. <br>
 Inside the ```wifi-firmware``` folder, there is a folder called ```gts4lvwifi```. These files would go into ```/lib/firmware/qcom/sdm670/gts4lvwifi```. <br>
+There is also a folder called ```ath10k```. These files would go into ```/lib/firmware/ath10k/WCN3990/hw1.0```
 I am not sure whether this will work on all devices as there is a bunch of secure-boot like signing happening here, but generating some of these files is a REAL pain, so I have included them just in case. <br>
 Also, most of these files seem to be signature checked. <br>
 
@@ -21,4 +22,7 @@ The ```wlanmdsp.mbn``` file is located in the ```apnhlos``` partiton  ```(/dev/m
 
 ## Step 3 - Pull the required filesystems for the modem from partitions
 NOTE: As of now, I don't think this is required anymore. There were 4 files pulled in through ```tqftpserv``` for the modem filesystem. <br>
+
+## Step 4 - Generate ```board-2.bin``` and obtain ```firmware-5.bin``` for the ath10k driver
+These files don't seem to exist on the original android installation, so they have to be fetched elsewhere, or in the case of ```board-2.bin```, have to be specifically generated for the device. <br>
 
