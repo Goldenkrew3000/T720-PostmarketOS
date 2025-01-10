@@ -1,0 +1,23 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Device tree for the Samsung Galaxy Tab S5e.
+ *
+ * Copyright (c) 2024, Goldenkrew3000. All rights reserved.
+ */
+
+/dts-v1/;
+
+#include "sdm670-samsung-common.dtsi"
+
+/ {
+    model = "Samsung Galaxy SM-T720";
+    compatible = "samsung,gts4lvwifi", "qcom,sdm670";
+};
+
+&framebuffer {
+    reg = <0 0x9c000000 0 (2560 * 1600 * 4)>;
+    width = <2560>;
+    height = <1600>;
+    stride = <(2560 * 4)>;
+    status = "okay";
+};
