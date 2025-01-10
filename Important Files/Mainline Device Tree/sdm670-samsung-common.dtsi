@@ -1004,6 +1004,7 @@
 
 // USB stuff here, currently non functional due to USB2 being muxed through the PMIC
 // TODO: Actually implement USB3 support
+/*
 &usb_1 {
     qcom,select-utmi-as-pipe-clk;
     //status = "okay";
@@ -1016,6 +1017,7 @@
 &usb_1_qmpphy {
     //status = "okay";
 };
+*/
 
 &venus {
     firmware-name = "qcom/sdm670/gts4lvwifi/venus.mbn";
