@@ -2,9 +2,9 @@
 // STMicroelectronics FTS1BA90A driver
 //
 // Driver based off of stmfts
-// Copyright (c) 2024 Goldenkrew3000 <hungrymike@live.com>
+// Copyright (c) 2024-2025 Goldenkrew3000 <hungrymike@live.com>
 
-// Version 1a
+// Version 1 beta (Implement basic multi-touch functionality)
 
 #include <linux/delay.h>
 #include <linux/i2c.h>
@@ -58,7 +58,7 @@
 #define FTS1BA90A_STACK_DEPTH       32
 #define FTS1BA90A_MAX_DATA_SIZE     (FTS1BA90A_EVENT_SIZE * FTS1BA90A_STACK_DEPTH)
 #define FTS1BA90A_DRIVER_NAME       "stm_fts1ba90a"
-#define FTS1BA90A_SUPPORT_MULTITOUCH 0 // Multitouch is currently disabled
+#define FTS1BA90A_SUPPORT_MULTITOUCH 1 // 0 is disabled, 1 is enabled
 
 enum fts1ba90a_regulators {
     FTS1BA90A_REGULATOR_VDD,
@@ -118,7 +118,7 @@ static int fts1ba90a_write_register(struct fts1ba90a_data* data, uint8_t* reg, i
     int ret;
     struct i2c_msg transfer_msg[2];
     uint8_t* write_buf;
-    
+
     write_buf = kzalloc(bytes, GFP_KERNEL);
     if (!write_buf) {
         return -ENOMEM;
@@ -225,8 +225,6 @@ static void fts1ba90a_parse_event(struct fts1ba90a_data* data) {
                 // Coordinate event
                 event_coordinate = (struct fts1ba90a_event_coordinate*)event;
                 touch_id = event_coordinate->tid;
-                // NOTE: Downstream driver does error checking for over 10 fingers here... why...
-
                 touch_x = (event_coordinate->x_11_4 << 4) | (event_coordinate->x_3_0);
                 touch_y = (event_coordinate->y_11_4 << 4) | (event_coordinate->y_3_0);
                 touch_z = event_coordinate->z & 0x3F;
@@ -235,34 +233,43 @@ static void fts1ba90a_parse_event(struct fts1ba90a_data* data) {
                 touch_major = event_coordinate->major;
 
                 // The X coordinate seems to be reversed to the panel, reverse it
-                // NOTE: BAD BAD BAD FOR UPSTREAM, THIS ASSUMES THE PANEL IS 1600 pixel in height
+                // Note: After a lot of thinking, this is not such a bad idea, considering this driver
+                //       is only ever going to be used with this specific panel
                 touch_x = 1600 - touch_x;
 
                 if (touch_x != 0 && touch_y != 0) {
-                    if (FTS1BA90A_SUPPORT_MULTITOUCH == 0 && touch_id == 0) {
-                        // If multitouch is disabled
-                        if (touch_action == 1) {
-                            input_mt_slot(data->input, touch_id);
-                            input_mt_report_slot_state(data->input, MT_TOOL_FINGER, true);
-                            input_report_abs(data->input, ABS_MT_POSITION_Y, touch_x);
-                            input_report_abs(data->input, ABS_MT_POSITION_X, touch_y);
-                            input_report_abs(data->input, ABS_MT_TOUCH_MAJOR, touch_major);
-                            input_report_abs(data->input, ABS_MT_TOUCH_MINOR, touch_minor);
-                            input_report_abs(data->input, ABS_MT_PRESSURE, touch_z);
-                            input_sync(data->input);
-                        } else if (touch_action == 2) {
-                            input_mt_slot(data->input, touch_id);
-                            input_report_abs(data->input, ABS_MT_POSITION_Y, touch_x);
-                            input_report_abs(data->input, ABS_MT_POSITION_X, touch_y);
-                            input_report_abs(data->input, ABS_MT_TOUCH_MAJOR, touch_major);
-                            input_report_abs(data->input, ABS_MT_TOUCH_MINOR, touch_minor);
-                            input_report_abs(data->input, ABS_MT_PRESSURE, touch_z);
-                            input_sync(data->input);
-                        } else if (touch_action == 3) {
-                            input_mt_slot(data->input, touch_id);
-                            input_mt_report_slot_inactive(data->input);
-                            input_sync(data->input);
+                    if (FTS1BA90A_SUPPORT_MULTITOUCH == 0) { // Multi-touch is disabled
+                        if (touch_id == 0) { // Ignore all other fingers except the first touching the panel
+                            goto register_touch;
                         }
+                    } else if (FTS1BA90A_SUPPORT_MULTITOUCH == 1) { // Multi-touch is enabled
+                        goto register_touch;
+                    }
+                    break; // This line is generally hit if SUPPORT_MULTITOUCH is not 1 or 2, or
+                           // multi-touch is disabled and touch_id was not 0
+
+register_touch:
+                    if (touch_action == 1) {
+                        input_mt_slot(data->input, touch_id);
+                        input_mt_report_slot_state(data->input, MT_TOOL_FINGER, true);
+                        input_report_abs(data->input, ABS_MT_POSITION_Y, touch_x);
+                        input_report_abs(data->input, ABS_MT_POSITION_X, touch_y);
+                        input_report_abs(data->input, ABS_MT_TOUCH_MAJOR, touch_major);
+                        input_report_abs(data->input, ABS_MT_TOUCH_MINOR, touch_minor);
+                        input_report_abs(data->input, ABS_MT_PRESSURE, touch_z);
+                        input_sync(data->input);
+                    } else if (touch_action == 2) {
+                        input_mt_slot(data->input, touch_id);
+                        input_report_abs(data->input, ABS_MT_POSITION_Y, touch_x);
+                        input_report_abs(data->input, ABS_MT_POSITION_X, touch_y);
+                        input_report_abs(data->input, ABS_MT_TOUCH_MAJOR, touch_major);
+                        input_report_abs(data->input, ABS_MT_TOUCH_MINOR, touch_minor);
+                        input_report_abs(data->input, ABS_MT_PRESSURE, touch_z);
+                        input_sync(data->input);
+                    } else if (touch_action == 3) {
+                        input_mt_slot(data->input, touch_id);
+                        input_mt_report_slot_inactive(data->input);
+                        input_sync(data->input);
                     }
                 }
                 break;
@@ -277,7 +284,7 @@ static int fts1ba90a_read_event(struct fts1ba90a_data* data) {
     int ret;
     uint8_t command = FTS1BA90A_REG_READ_ALL_EVENTS;
     struct i2c_msg transfer_msg[2];
-    
+
     transfer_msg[0].addr = data->client->addr;
     transfer_msg[0].len = 1;
     transfer_msg[0].buf = &command;
@@ -300,7 +307,7 @@ static irqreturn_t fts1ba90a_irq_handler(int irq, void* dev) {
 
     mutex_lock(&data->mutex);
     err = fts1ba90a_read_event(data);
-    if (unlikely(err)) { // unlikely() is branch prediction
+    if (unlikely(err)) {
         dev_err(&data->client->dev, "Could not read IRQ event.\n");
     } else {
         fts1ba90a_parse_event(data);
@@ -332,7 +339,7 @@ static int fts1ba90a_input_open(struct input_dev* dev) {
     data->running = true;
     // TODO Here they enable 'hover sense', but I am 99% sure it's not even supported on this device
     mutex_unlock(&data->mutex);
-    
+
     // TODO Here they 'use key', and I do not think it's needed.
 
     return 0;
@@ -379,7 +386,7 @@ static int fts1ba90a_probe(struct i2c_client* client) {
     data->input->id.bustype = BUS_I2C;
     data->input->open = fts1ba90a_input_open;
     data->input->close = fts1ba90a_input_close;
-    
+
     // Set input capabilities
     input_set_capability(data->input, EV_ABS, ABS_MT_POSITION_X);
     input_set_capability(data->input, EV_ABS, ABS_MT_POSITION_Y);

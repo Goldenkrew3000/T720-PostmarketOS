@@ -1,5 +1,5 @@
 # SM-T720 PostmarketOS Mainlining
-## Latest Kernel Tested: 6.12.3 (2024-12-12)
+## Latest Kernel Tested: 6.13.3 (2025-03-22)
 
 ## What is the purpose of this repository?
 This repository is basically a place for in-development drivers to be stored for the Samsung Tab S5e under PmOS Mainline
@@ -14,7 +14,7 @@ a different driver. <br>
 Notes: Still a lot ot fix in this driver, have to properly handle multitouch, and implement shutdown/suspend code.<br>
 Driver is functional.
 
-## Panel (AMSA??)
+## Panel (AMSA05RB01)
 This driver allows the Adreno GPU to power up and output a signal at the right resolution, but the panel does nothing. I am 99% sure the device tree is correct at this point (not including the missing power stuff, that also seems to be missing from the downstream device tree). I do not have the skills to get this working, but I am putting my work here regardless. <br>
 
 ## USB
